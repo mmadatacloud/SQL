@@ -1,0 +1,196 @@
+--
+-- I downloaded a SQL script and utilized Microsoft SQL Server Management Studio (SSMS) to establish the 'BikeStores' database,
+   simulating a fictional store environment. The 'BikeStores' sample database consists of two schemas, 'sales' and 'production,' housing a total of nine tables.
+   Subsequently, I analyzed the database using SQL queries, creating views and stored procedures.
+--
+--
+/* Establish a database view called TotalBikesSoldView 
+   that lists each bike name and associated total quantity sold.
+   Then query the view to show the top ten bikes sold. 
+   Present the output in descending order based on total bikes sold. */
+
+CREATE VIEW TotalBikesSoldView
+AS
+
+SELECT product_name, SUM(quantity) AS Total_sold
+FROM production.products
+JOIN sales.order_items ON order_items.product_id = products.product_id
+GROUP BY product_name
+
+SELECT TOP 10 * FROM TotalBikesSoldView
+ORDER BY total_sold DESC
+
+
+/* Establish a database view called MaximumBrandBikePriceView 
+   that lists each bike brand and associated maximum bike price.  
+   Then query the view and present the output in ascending order based on bike brand name. */
+
+CREATE VIEW MaximumBrandBikePriceView
+AS
+
+SELECT brand_name, MAX(list_price) AS MaxPrice
+FROM production.brands
+JOIN production.products ON products.brand_id = brands.brand_id
+GROUP BY brand_name;
+
+SELECT * FROM MaximumBrandBikePriceView
+ORDER BY brand_name;
+
+
+
+/* Establish a database view called AverageBrandBikePriceView 
+that lists each bike brand name and associated average bike list price and list price standard deviation. 
+Then query the view and present the output in ascending order based on bike brand name. */
+
+CREATE VIEW AverageBrandBikePriceView 
+AS
+
+SELECT brand_name, AVG(list_price) AS AvgPrice, STDEV(list_price) AS StdevPrice
+FROM production.brands
+JOIN production.products
+ON brands.brand_id = products.brand_id
+GROUP BY brand_name
+
+SELECT * FROM AverageBrandBikePriceView
+ORDER BY brand_name
+
+
+
+/* Establish a database view called NumberOfCustomersPerStateView 
+that lists the number of customers in each state.  
+The view needs to show the state name along with the customer amount.  
+Then query the view and present the output in ascending order based on state. */
+
+CREATE VIEW NumberOfCustomersPerStateView
+AS
+
+SELECT state, COUNT(customer_id) AS CustomerCount
+FROM sales.customers
+GROUP BY state
+
+SELECT * FROM NumberOfCustomersPerStateView
+ORDER BY state
+
+
+
+/* Establish a database view called TotalBikesSoldPerStateView 
+that shows the cumulative bike sales per state. 
+The view needs to show the state name along with the bike sales quantity. 
+Then query the view and present the output in ascending order based on state. */
+
+CREATE VIEW TotalBikesSoldPerStateView
+AS
+
+SELECT state, SUM(quantity) AS BikesSold
+FROM sales.customers
+JOIN sales.orders ON orders.customer_id = customers.customer_id
+JOIN sales.order_items ON orders.order_id = order_items.order_id
+GROUP BY state
+
+SELECT * FROM TotalBikesSoldPerStateView
+ORDER BY state
+
+
+
+/* Create a stored procedure that lists the stock quantity at each store for a specified bike brand. 
+The output must show the store name and stock quantity value. 
+The results need to be presented in ascending order based on store name. */
+
+CREATE PROCEDURE GetStoreBrandStockQuantity
+
+@BrandName VARCHAR(255)
+AS
+
+SELECT store_name, SUM(quantity) AS stock_quantity
+FROM sales.stores
+JOIN production.stocks ON stores.store_id = stocks.store_id
+JOIN production.products ON products.product_id = stocks.product_id
+JOIN production.brands ON brands.brand_id = products.brand_id
+GROUP BY store_name, brand_name
+HAVING brand_name = @BrandName
+ORDER BY store_name
+
+EXEC GetStoreBrandStockQuantity @BrandName= 'Trek';
+
+
+
+/* Create a stored procedure that lists the average, standard deviation, 
+   maximum, and minimum list prices for a specified bike brand. 
+   The output must show the brand name along with the aggregated results. 
+   The results need to be presented in ascending order based on store name. */
+
+CREATE PROCEDURE GetBrandListPriceStatistics
+
+@BrandName VARCHAR(255)
+AS
+
+SELECT brand_name, AVG(list_price) AS AvgPrice, STDEV(list_price) AS StdevPrice, 
+	   MAX(list_price) AS Max_Price, MIN(list_price) MinPrice
+FROM production.brands
+JOIN production.products ON brands.brand_id = products.brand_id
+GROUP BY brand_name
+HAVING brand_name = @BrandName
+ORDER BY 1
+
+EXEC GetBrandListPriceStatistics @BrandName='Trek';
+
+
+
+/* Create a stored procedure that lists the bike categories 
+   with minimum list prices below a specified value.
+   The output must show the bike category and associated minimum list price. 
+   The results need to be presented in ascending order based on bike category. */
+
+CREATE PROCEDURE GetBikeCategoriesWithMinPriceBelowValue
+
+@Price DECIMAL(10,2)
+AS
+
+SELECT category_name, MIN(list_price) AS min_list_price
+FROM production.categories
+JOIN production.products ON categories.category_id = products.category_id
+GROUP BY category_name
+HAVING MIN(list_price) < @Price
+
+EXEC GetBikeCategoriesWithMinPriceBelowValue @Price=500;
+
+
+
+/* Create a stored procedure that lists the stock quantity for each bike category at a specified store. 
+   The output must show the bike category and stock quantity value. 
+   The results need to be presented in ascending order based on bike category. */
+
+CREATE PROCEDURE GetCategoryStockQuantityForStore
+@StoreName VARCHAR(255)
+AS
+
+SELECT category_name, SUM(quantity) AS stock_quantity
+FROM production.categories
+JOIN production.products ON categories.category_id = products.category_id
+JOIN production.stocks ON products.product_id = stocks.product_id
+JOIN sales.stores ON stocks.store_id = stores.store_id
+GROUP BY category_name, store_name
+HAVING store_name = 'Santa Cruz Bikes'
+ORDER BY category_name
+
+EXEC GetCategoryStockQuantityForStore @StoreName='Santa Cruz Bikes';
+
+
+
+/* Create a stored procedure that presents the sales discount average 
+and standard deviation for bike brands at or above a specified discount value. 
+The output must show the brand names in alphabetical order along with the associated statistics.  */
+
+CREATE PROCEDURE GetBrandAverageSalesDiscountAboveValue
+@Discount DECIMAL(4,2)
+
+AS
+SELECT brand_name, AVG(discount) AS avg_discount, STDEV(discount) AS stdev_discount
+FROM production.brands
+JOIN production.products ON brands.brand_id = products.brand_id
+JOIN sales.order_items ON products.product_id = order_items.product_id
+GROUP BY brand_name
+HAVING AVG(discount) >= @Discount
+ORDER BY brand_name
+
+ EXEC GetBrandAverageSalesDiscountAboveValue @Discount=0.11;
